@@ -1,4 +1,4 @@
-# Task Manager — React Native (Mid-Level Assessment)
+# Task Manager — React Native
 
 A clean, production-ready, offline-first Task Manager built with **React Native**, **Expo SDK 56**, **TypeScript**, **Zustand**, and **Supabase**.
 
