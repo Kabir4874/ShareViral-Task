@@ -2,20 +2,36 @@ import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { BlurView } from 'expo-blur';
-import React, { useState } from 'react';
-import { FlatList, Modal, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { useCallback, useState } from 'react';
+import {
+  ActivityIndicator,
+  FlatList,
+  Modal,
+  RefreshControl,
+  ScrollView,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { TaskCard } from '@/components/TaskCard';
 import { useTasks } from '@/context/TaskContext';
+import { useFilteredTasks } from '@/hooks/useFilteredTasks';
+import { useNetworkStatus } from '@/hooks/useNetworkStatus';
 import { RootStackParamList } from '@/types/navigation';
-import { FilterStatus, SortOption } from '@/types/task';
+import { FilterStatus, SortOption, Task } from '@/types/task';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
 export const TaskListScreen = () => {
   const navigation = useNavigation<NavigationProp>();
   const insets = useSafeAreaInsets();
+
+  // Network listener integration
+  useNetworkStatus();
+
   const {
     tasks,
     categories,
@@ -23,10 +39,15 @@ export const TaskListScreen = () => {
     statusFilter,
     sortOption,
     searchQuery,
+    isLoading,
+    isSyncing,
+    isOffline,
+    lastSyncedAt,
     setSelectedCategory,
     setStatusFilter,
     setSortOption,
     setSearchQuery,
+    refreshData,
   } = useTasks();
 
   const [sortModalVisible, setSortModalVisible] = useState(false);
@@ -35,35 +56,36 @@ export const TaskListScreen = () => {
     setSortModalVisible(false);
   };
 
-  const filteredTasks = tasks.filter((task) => {
-    const matchesSearch =
-      task.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      task.description.toLowerCase().includes(searchQuery.toLowerCase());
+  const sortedTasks = useFilteredTasks(
+    tasks,
+    searchQuery,
+    selectedCategory,
+    statusFilter,
+    sortOption
+  );
 
-    const matchesCategory = selectedCategory === 'all' || task.categoryId === selectedCategory;
+  const getCategory = useCallback(
+    (catId: string) => categories.find((c) => c.id === catId),
+    [categories]
+  );
 
-    const matchesStatus = statusFilter === 'all' || task.status === statusFilter;
+  const handleTaskPress = useCallback(
+    (taskId: string) => {
+      navigation.navigate('TaskDetail', { taskId });
+    },
+    [navigation]
+  );
 
-    return matchesSearch && matchesCategory && matchesStatus;
-  });
-
-  const sortedTasks = [...filteredTasks].sort((a, b) => {
-    if (sortOption === 'dueDateAsc') {
-      return a.dueDate.localeCompare(b.dueDate);
-    }
-    if (sortOption === 'dueDateDesc') {
-      return b.dueDate.localeCompare(a.dueDate);
-    }
-    if (sortOption === 'createdAtDesc') {
-      return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
-    }
-    if (sortOption === 'createdAtAsc') {
-      return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
-    }
-    return 0;
-  });
-
-  const getCategory = (catId: string) => categories.find((c) => c.id === catId);
+  const renderTaskItem = useCallback(
+    ({ item }: { item: Task }) => (
+      <TaskCard
+        task={item}
+        category={getCategory(item.categoryId)}
+        onPress={() => handleTaskPress(item.id)}
+      />
+    ),
+    [getCategory, handleTaskPress]
+  );
 
   const topPadding = Math.max(insets.top, 24) + 8;
 
@@ -76,9 +98,26 @@ export const TaskListScreen = () => {
           <View className="flex-row items-center justify-between">
             <View>
               <Text className="text-2xl font-extrabold tracking-tight text-slate-900">Tasks</Text>
-              <Text className="mt-0.5 text-base font-semibold text-slate-400">
-                {sortedTasks.length} {sortedTasks.length === 1 ? 'task' : 'tasks'}
-              </Text>
+              <View className="mt-0.5 flex-row items-center">
+                <Text className="text-sm font-semibold text-slate-400">
+                  {sortedTasks.length} {sortedTasks.length === 1 ? 'task' : 'tasks'}
+                </Text>
+
+                {lastSyncedAt ? (
+                  <>
+                    <Text className="mx-1.5 text-xs text-slate-300">•</Text>
+                    <Ionicons
+                      name="cloud-done-outline"
+                      size={12}
+                      color="#64748b"
+                      style={{ marginRight: 3 }}
+                    />
+                    <Text className="text-xs font-medium text-slate-500">
+                      Last synced {lastSyncedAt}
+                    </Text>
+                  </>
+                ) : null}
+              </View>
             </View>
 
             {/* Header Right Action: Minimal Sort Button */}
@@ -191,18 +230,41 @@ export const TaskListScreen = () => {
         </View>
       </BlurView>
 
-      {/* Task List */}
+      {/* Background Refresh Loading State Banner */}
+      {isSyncing && (
+        <View className="flex-row items-center justify-center border-b border-indigo-100 bg-indigo-50/90 py-1.5">
+          <ActivityIndicator size="small" color="#4f46e5" style={{ marginRight: 8 }} />
+          <Text className="text-xs font-bold text-indigo-700">Syncing with backend...</Text>
+        </View>
+      )}
+
+      {/* Offline Status Notice Banner */}
+      {isOffline && (
+        <View className="shadow-xs flex-row items-center justify-between border-b border-amber-600/20 bg-amber-500/90 px-4 py-2">
+          <View className="flex-row items-center">
+            <Ionicons
+              name="cloud-offline-outline"
+              size={16}
+              color="#ffffff"
+              style={{ marginRight: 6 }}
+            />
+            <Text className="text-sm font-bold text-white">Offline Mode - Saved to Cache</Text>
+          </View>
+          <TouchableOpacity onPress={refreshData} className="rounded-md bg-white/20 px-2 py-0.5">
+            <Text className="text-xs font-extrabold text-white">Retry Sync</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+
+      {/* Task List with Pull to Refresh */}
       <FlatList
         data={sortedTasks}
         keyExtractor={(item) => item.id}
         contentContainerStyle={{ padding: 16, paddingBottom: 110 }}
-        renderItem={({ item }) => (
-          <TaskCard
-            task={item}
-            category={getCategory(item.categoryId)}
-            onPress={() => navigation.navigate('TaskDetail', { taskId: item.id })}
-          />
-        )}
+        refreshControl={
+          <RefreshControl refreshing={isLoading} onRefresh={refreshData} colors={['#4f46e5']} />
+        }
+        renderItem={renderTaskItem}
         ListEmptyComponent={
           <View className="items-center justify-center py-20">
             <Ionicons name="clipboard-outline" size={56} color="#cbd5e1" />

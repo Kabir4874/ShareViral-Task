@@ -1,5 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
-import React from 'react';
+import React, { memo } from 'react';
 import { Text, TouchableOpacity, View } from 'react-native';
 
 import { CategoryBadge } from '@/components/CategoryBadge';
@@ -12,7 +12,7 @@ interface TaskCardProps {
   onPress: () => void;
 }
 
-export const TaskCard: React.FC<TaskCardProps> = ({ task, category, onPress }) => {
+export const TaskCard: React.FC<TaskCardProps> = memo(({ task, category, onPress }) => {
   const { toggleTaskStatus, toggleTaskStar } = useTasks();
 
   const isDone = task.status === 'done';
@@ -92,4 +92,6 @@ export const TaskCard: React.FC<TaskCardProps> = ({ task, category, onPress }) =
       </View>
     </TouchableOpacity>
   );
-};
+});
+
+TaskCard.displayName = 'TaskCard';
