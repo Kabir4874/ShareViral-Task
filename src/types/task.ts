@@ -5,9 +5,9 @@ export type SortOption = 'dueDateAsc' | 'dueDateDesc' | 'createdAtDesc' | 'creat
 export interface Category {
   id: string;
   name: string;
-  color: string; // Tailwind color code or hex e.g. '#6366f1' or 'indigo'
-  badgeBg: string; // Tailwind class e.g. 'bg-indigo-100'
-  badgeText: string; // Tailwind class e.g. 'text-indigo-700'
+  color: string;
+  badgeBg: string;
+  badgeText: string;
 }
 
 export interface Task {
@@ -20,3 +20,5 @@ export interface Task {
   createdAt: string;
   isStarred: boolean;
 }
+
+export type { TaskState } from './store';

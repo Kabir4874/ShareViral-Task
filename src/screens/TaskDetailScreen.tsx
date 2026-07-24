@@ -124,7 +124,7 @@ export const TaskDetailScreen = () => {
                 className={`text-base font-semibold ${
                   task.isStarred ? 'text-amber-800' : 'text-slate-600'
                 }`}>
-                {task.isStarred ? 'Starred Task (Local-only flag)' : 'Tap to Star this task'}
+                {task.isStarred ? 'Starred Task' : 'Tap to Star this task'}
               </Text>
             </View>
             <Ionicons
